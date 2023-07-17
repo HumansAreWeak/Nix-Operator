@@ -1,0 +1,6 @@
+[submodule "vendors/CURL"]
+	path = vendors/CURL
+	url = https://github.com/curl/curl.git
+[submodule "vendors/jsoncpp"]
+	path = vendors/jsoncpp
+	url = https://github.com/open-source-parsers/jsoncpp.git

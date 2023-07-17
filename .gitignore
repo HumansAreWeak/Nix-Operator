@@ -1,0 +1,8 @@
+
+.cache/
+cmake-build-debug/
+cmake_build_Debug/
+
+compile_commands.json
+Makefile
+
