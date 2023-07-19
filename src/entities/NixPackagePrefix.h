@@ -27,6 +27,15 @@ struct NixPackagePrefix {
     {
     }
 
+    inline NixPackagePrefix(std::string &VERSION, std::string &HASH, unsigned long int LAST_MODIFIED, unsigned int SIZE, unsigned int ID)
+        : version(VERSION.c_str())
+        , hash(HASH.c_str())
+        , lastModified(LAST_MODIFIED)
+        , size(SIZE)
+        , id(ID)
+    {
+    }
+
     [[nodiscard]] inline std::string toString() const
     {
         std::ostringstream ss;

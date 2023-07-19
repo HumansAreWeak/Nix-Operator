@@ -11,6 +11,7 @@
 #include "network/Common.h"
 #include "network/CurlWrapper.h"
 #include "network/SourceFetch.h"
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstring>
@@ -20,6 +21,7 @@
 #include <map>
 #include <pugixml.hpp>
 #include <regex>
+#include <sstream>
 #include <sys/stat.h>
 
 #define START_MARKER_URL (BASE_URL "/?delimiter=/&prefix=nixpkgs/")
@@ -27,7 +29,7 @@
 #define NIXOP_REGISTRY_FILE (NIXOP_CACHE_DIR "/nixop_registries")
 #define NIXOP_REGISTRY_FILE_TMP (NIXOP_CACHE_DIR "/nixop_registries_tmp")
 
-static void storePackagesToStorage(const std::multimap<std::string, NixPackagePrefix> &packages, const char *path)
+void SourceHandler::storePackagesToStorage(const std::multimap<std::string, NixPackagePrefix> &packages, const char *path)
 {
     std::cout << "Storing file in path " << path << std::endl;
     // Explicitly stating that we are truncating
@@ -37,21 +39,20 @@ static void storePackagesToStorage(const std::multimap<std::string, NixPackagePr
     for (auto &pkg : packages) {
         if (pkg.first != current) {
             if (!current.empty()) {
-                f << ")\n";
+                f << '\n';
             }
             current = pkg.first;
-            f << current << "(";
+            f << current << '?';
         }
         else {
-            f << ")(";
+            f << '?';
         }
 
-        f << pkg.second.hash << ";" << pkg.second.lastModified << ";" << pkg.second.size << ";" << pkg.second.id;
+        f << pkg.second.hash << '$' << pkg.second.lastModified << '$' << pkg.second.size << '$' << pkg.second.id;
     }
-    f << ")";
 }
 
-static void storePackages(const std::multimap<std::string, NixPackagePrefix> &packages)
+void SourceHandler::storePackages(const std::multimap<std::string, NixPackagePrefix> &packages)
 {
     // Checking with Posix functions if main cache file already exists
     struct stat buffer { };
@@ -63,7 +64,7 @@ static void storePackages(const std::multimap<std::string, NixPackagePrefix> &pa
     }
 }
 
-std::optional<std::string> updateAllSources()
+std::optional<std::string> SourceHandler::updateAllSources()
 {
     using namespace std::chrono_literals;
 
@@ -140,8 +141,9 @@ std::optional<std::string> updateAllSources()
 
 std::future<std::optional<std::string>> SourceHandler::fetchAllSources()
 {
-    return std::async(std::launch::async, updateAllSources);
+    return std::async(std::launch::async, [&]() { return updateAllSources(); });
 }
+
 bool SourceHandler::canMapRepositories()
 {
     struct stat buffer { };
@@ -152,8 +154,8 @@ SourceHandler::SourceHandler(std::shared_ptr<Config> &config)
     : mConfig(config)
 {
     mObserverId = mConfig->registerObserver([&](const char *name, const char *value) {
-        if (strcmp(name, "version"))
-            mapRepositories(value);
+        if (strcmp(name, "version") == 0)
+            selectVersion(value);
         std::cout << "Observer called with name=" << name << ", value=" << value << std::endl;
     });
 }
@@ -163,64 +165,98 @@ SourceHandler::~SourceHandler()
     mConfig->removeObserver(mObserverId);
 }
 
-void SourceHandler::mapRepositories(const char *version)
+void SourceHandler::mapRepositories()
 {
     std::ifstream f(NIXOP_REGISTRY_FILE);
     std::string line;
-    // Match everything from start up to first occurrence of '(' (opening bracket)
-    std::regex expr(R"(^[^\(]*)");
-    std::smatch matches;
+    mRepositories.clear();
+    std::vector<NixPackagePrefix> *packages;
 
     // What a mess ?!
     while (std::getline(f, line)) {
-        // Skip if no valid version number is found
-        if (!std::regex_search(line, matches, expr) || matches.empty())
-            continue;
+        std::istringstream ss(line);
+        // std::cout << "Read line: " << line << std::endl;
+        std::string version;
+        bool readVersion = false;
 
-        std::string hit = matches[0].str();
-        unsigned long ptr = hit.size();
-        unsigned long offset = 0;
+        for (std::string group; std::getline(ss, group, '?');) {
+            if (!readVersion) {
+                version = group;
+                mRepositories.insert(std::pair(version, std::vector<NixPackagePrefix>()));
+                packages = &mRepositories[version];
+                // 1000 elements per group reserved, so it won't copy too much under the hood
+                packages->reserve(1000);
+                readVersion = true;
+            }
+            else {
+                std::istringstream iss(group);
+                std::string sHash;
+                std::string sLastModified;
+                std::string sSize;
+                std::string sId;
+                int i = 0;
 
-        while (ptr < line.size()) {
-            unsigned long start = line.find('(') + offset;
-            unsigned long end = line.find(')') + offset;
-            unsigned long num = end - start - 1;
-            std::string current = line.substr(start + 1, num);
-            ptr += end + 1;
-            offset += 2 + num;
-
-            std::cout << current << std::endl;
-
-            int index = 0;
-            int lastHit = 0;
-            std::array<std::string, 4> found;
-
-            /*
-
-            for (int i = 0; i < current.size(); i++) {
-                if (current[i] == ';') {
-                    int numEl = i - lastHit;
-                    found[index++] = current.substr(lastHit, numEl);
-                    lastHit = i + 1;
-
-                    if (index == 3) {
-                        found[index] = current.substr(lastHit);
+                for (std::string specifier; std::getline(iss, specifier, '$');) {
+                    switch (i++) {
+                    case 0:
+                        sHash = specifier;
+                        break;
+                    case 1:
+                        sLastModified = specifier;
+                        break;
+                    case 2:
+                        sSize = specifier;
+                        break;
+                    case 3:
+                        sId = specifier;
+                        break;
+                    default:
                         break;
                     }
                 }
-            }
 
-            std::cout << "Found: \n";
-
-            for (auto &d : found) {
-                std::cout << "        " << d << "\n";
+                packages->emplace_back(
+                    version,
+                    sHash,
+                    std::stoi(sLastModified),
+                    std::stoi(sSize),
+                    std::stoi(sId));
             }
-             */
         }
+    }
+
+    for (auto &rep : mRepositories) {
+        auto &v = rep.second;
+        std::sort(v.begin(), v.end(), [](const NixPackagePrefix &p1, const NixPackagePrefix &p2) { return p1.lastModified > p2.lastModified; });
     }
 }
 
-void SourceHandler::mapRepositories()
+void SourceHandler::selectVersion(const std::string &version)
 {
-    mapRepositories(mConfig->getString("version", "23.05_latest").c_str());
+    unsigned long pos = version.find('_');
+    std::string nextVersion = version.substr(0, pos);
+    std::string hash = version.substr(pos + 1);
+
+    auto search = mRepositories.find(nextVersion);
+    if (search == mRepositories.end())
+        return selectVersion("23.05_latest");
+
+    long offset = 0;
+
+    if (hash != "latest") {
+        auto it = std::find_if(search->second.begin(), search->second.end(), [&](const NixPackagePrefix &p) { return p.hash == hash; });
+        offset = std::distance(search->second.begin(), it);
+    }
+
+    mSelection = NixSelection(
+        nextVersion,
+        hash,
+        offset);
+}
+
+NixSelection &SourceHandler::getSelection()
+{
+    auto s = mRepositories.find(mSelection.version);
+    mSelection.pkg = &s->second[mSelection.offset];
+    return mSelection;
 }
