@@ -1,7 +1,8 @@
 /**
- * Description of the header file to be included here.
+ * Here are common networking utilities, that are shared between instances.
+ * All utilities are static and should have no side-effects.
  *
- * @author ich
+ * @author Maik Steiger
  * @date 18.07.23
  * @version 1.0
  */

@@ -1,7 +1,7 @@
 /**
  * Description of the header file to be included here.
  *
- * @author ich
+ * @author Maik Steiger
  * @date 17.07.23
  * @version 1.0
  */

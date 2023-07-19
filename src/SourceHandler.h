@@ -1,7 +1,8 @@
 /**
- * Description of the header file to be included here.
+ * Main handling implementation for repository selection control
+ * It manages downloading, caching, as well as parsing and selecting.
  *
- * @author ich
+ * @author Maik Steiger
  * @date 18.07.23
  * @version 1.0
  */
