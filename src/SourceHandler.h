@@ -9,6 +9,7 @@
 
 #ifndef NIX_OPERATOR_SOURCEHANDLER_H
 #define NIX_OPERATOR_SOURCEHANDLER_H
+#include "Cache.h"
 #include "Config.h"
 #include "entities/NixPackagePrefix.h"
 #include <future>
@@ -42,6 +43,13 @@ struct NixSelection {
 };
 
 class SourceHandler {
+public:
+    inline static constexpr const std::string_view NIXOP_REGISTRY_FILE = "nixop_registries";
+    inline static constexpr const std::string_view NIXOP_REGISTRY_TMP_FILE = "nixop_registries_tmp";
+
+    inline static constexpr const std::string_view NIXOP_REGISTRY = JoinExpr<Cache::NIXOP_CACHE_DIR, NIXOP_REGISTRY_FILE>::value;
+    inline static constexpr const std::string_view NIXOP_REGISTRY_TMP = JoinExpr<Cache::NIXOP_CACHE_DIR, NIXOP_REGISTRY_TMP_FILE>::value;
+
 private:
     std::shared_ptr<Config> mConfig;
     unsigned int mObserverId;

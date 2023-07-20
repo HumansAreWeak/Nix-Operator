@@ -26,9 +26,6 @@
 
 #define START_MARKER_URL (BASE_URL "/?delimiter=/&prefix=nixpkgs/")
 
-#define NIXOP_REGISTRY_FILE (NIXOP_CACHE_DIR "/nixop_registries")
-#define NIXOP_REGISTRY_FILE_TMP (NIXOP_CACHE_DIR "/nixop_registries_tmp")
-
 void SourceHandler::storePackagesToStorage(const std::multimap<std::string, NixPackagePrefix> &packages, const char *path)
 {
     std::cout << "Storing file in path " << path << std::endl;
@@ -56,11 +53,11 @@ void SourceHandler::storePackages(const std::multimap<std::string, NixPackagePre
 {
     // Checking with Posix functions if main cache file already exists
     struct stat buffer { };
-    if (stat(NIXOP_REGISTRY_FILE, &buffer) == 0) {
-        storePackagesToStorage(packages, NIXOP_REGISTRY_FILE_TMP);
+    if (stat(NIXOP_REGISTRY.data(), &buffer) == 0) {
+        storePackagesToStorage(packages, NIXOP_REGISTRY_TMP.data());
     }
     else {
-        storePackagesToStorage(packages, NIXOP_REGISTRY_FILE);
+        storePackagesToStorage(packages, NIXOP_REGISTRY.data());
     }
 }
 
@@ -147,7 +144,7 @@ std::future<std::optional<std::string>> SourceHandler::fetchAllSources()
 bool SourceHandler::canMapRepositories()
 {
     struct stat buffer { };
-    return stat(NIXOP_REGISTRY_FILE, &buffer) == 0;
+    return stat(NIXOP_REGISTRY.data(), &buffer) == 0;
 }
 
 SourceHandler::SourceHandler(std::shared_ptr<Config> &config)
@@ -167,7 +164,7 @@ SourceHandler::~SourceHandler()
 
 void SourceHandler::mapRepositories()
 {
-    std::ifstream f(NIXOP_REGISTRY_FILE);
+    std::ifstream f(NIXOP_REGISTRY.data());
     std::string line;
     mRepositories.clear();
     std::vector<NixPackagePrefix> *packages;

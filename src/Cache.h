@@ -8,11 +8,11 @@
 
 #ifndef NIX_OPERATOR_CACHE_H
 #define NIX_OPERATOR_CACHE_H
-
-#define NIXOP_CACHE_DIR "/tmp/nixop"
+#include <string>
 
 class Cache {
 public:
+    inline static constexpr const std::string_view NIXOP_CACHE_DIR = "/tmp/nixop/";
     static void ensureCacheFolderExists();
 };
 
