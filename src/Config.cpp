@@ -6,28 +6,26 @@
  * @version 1.0
  */
 #include "Config.h"
-#include <cstring>
 #include <filesystem>
 #include <iostream>
 
 Config::Config()
+    : mFStream(CONFIG_FILE.data(), std::ios::in | std::ios::out | std::ios::app)
 {
     Cache::ensureCacheFolderExists();
 };
 
-bool Config::getOptionWhereLineStartsWith(const char *startingWith, std::string &line)
+bool Config::getOptionWhereLineStartsWith(const std::string &startingWith, std::string &line)
 {
-    std::ifstream file(CONFIG_FILE);
-    if (!file.is_open())
+    if (!isStreamOpen())
         return false;
 
-    for (; std::getline(file, line);) {
+    for (; std::getline(mFStream, line);) {
         if (line.starts_with(startingWith)) {
-            line = line.substr(strlen(startingWith) + 1);
+            line = line.substr(startingWith.size() + 1);
             return true;
         }
     }
-
     return false;
 }
 
@@ -41,42 +39,19 @@ std::string Config::getString(const char *optionName, const char *def)
     return def;
 }
 
-bool Config::writeToConfig(const char *optionName, const char *value)
+void Config::writeToConfig(const char *optionName, const char *value)
 {
-    std::ifstream f(CONFIG_FILE);
+    if (createFileIfNotExist(optionName, value))
+        return;
 
-    if (!f.is_open()) {
-        std::ofstream outfile(CONFIG_FILE);
-        outfile << optionName << "=" << value;
-        return true;
-    }
-
-    std::string line;
-    std::ofstream outfile(CONFIG_FILE_TMP, std::ios::ate);
-
-    bool found = false;
-    while (std::getline(f, line)) {
-        if (line.starts_with(optionName)) {
-            outfile << optionName << "=" << value << "\n";
-            found = true;
-        }
-        else {
-            outfile << line;
-        }
-    }
-
-    if (!found) {
-        outfile << optionName << "=" << value << "\n";
-    }
-
-    rename(CONFIG_FILE_TMP, CONFIG_FILE);
+    writeRawConfig(optionName, value);
+    applyTempConfig();
     notifyAll(optionName, value);
-    return found;
 }
 
-bool Config::setString(const char *optionName, const char *value)
+void Config::setString(const char *optionName, const char *value)
 {
-    return writeToConfig(optionName, value);
+    writeToConfig(optionName, value);
 }
 
 unsigned int Config::registerObserver(Config::Callback observer)
@@ -96,12 +71,10 @@ bool Config::removeObserver(unsigned int key)
 
 void Config::notifyAll()
 {
-    std::ifstream f(CONFIG_FILE);
-    if (!f.is_open())
+    if (!isStreamOpen())
         return;
 
-    std::string line;
-    while (std::getline(f, line)) {
+    for (std::string line; std::getline(mFStream, line);) {
         auto pos = line.find('=');
         notifyAll(line.substr(0, pos).c_str(), line.substr(pos + 1).c_str());
     }
@@ -111,5 +84,52 @@ void Config::notifyAll(const char *name, const char *value)
 {
     for (auto &observer : mObservers) {
         observer.second(name, value);
+    }
+}
+
+bool Config::isStreamOpen()
+{
+    return mFStream.is_open();
+}
+
+void Config::applyTempConfig()
+{
+    rename(CONFIG_TMP_FILE.data(), CONFIG_FILE.data());
+}
+
+std::ofstream Config::getTempConfigStream()
+{
+    return std::ofstream(CONFIG_TMP_FILE.data(), std::ios::ate);
+}
+
+bool Config::createFileIfNotExist(const char *optionName, const char *value)
+{
+    // The file does not exist at this point
+    if (!isStreamOpen()) {
+        mFStream << optionName << "=" << value;
+        notifyAll(optionName, value);
+        return true;
+    }
+    return false;
+}
+
+void Config::writeRawConfig(const char *optionName, const char *value)
+{
+    auto outfile = getTempConfigStream();
+    bool match = false;
+
+    for (std::string line; std::getline(mFStream, line);) {
+        if (line.starts_with(optionName)) {
+            outfile << optionName << "=" << value << "\n";
+            match = true;
+        }
+        else {
+            outfile << line;
+        }
+    }
+
+    // Config was not found, so append it to the temporary stream
+    if (!match) {
+        outfile << optionName << "=" << value << "\n";
     }
 }
