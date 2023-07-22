@@ -10,7 +10,7 @@
 #include "entities/NixPackagePrefix.h"
 #include "network/Common.h"
 #include "network/CurlWrapper.h"
-#include "network/SourceFetch.h"
+#include "network/RepositoryCache.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -18,17 +18,17 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <loguru.hpp>
 #include <map>
 #include <pugixml.hpp>
 #include <regex>
 #include <sstream>
 #include <sys/stat.h>
 
-#define START_MARKER_URL (BASE_URL "/?delimiter=/&prefix=nixpkgs/")
-
-void SourceHandler::storePackagesToStorage(const std::multimap<std::string, NixPackagePrefix> &packages, const char *path)
+void SourceHandler::storeRepositoriesToStorage(const std::multimap<std::string, NixPackagePrefix> &packages, const char *path)
 {
-    std::cout << "Storing file in path " << path << std::endl;
+    LOG_F(INFO, "Fetched repository file is getting stored in %s", path);
+
     // Explicitly stating that we are truncating
     std::ofstream f(path, std::ios::trunc);
     std::string current;
@@ -49,15 +49,15 @@ void SourceHandler::storePackagesToStorage(const std::multimap<std::string, NixP
     }
 }
 
-void SourceHandler::storePackages(const std::multimap<std::string, NixPackagePrefix> &packages)
+void SourceHandler::storeRepositories(const std::multimap<std::string, NixPackagePrefix> &packages)
 {
     // Checking with Posix functions if main cache file already exists
     struct stat buffer { };
     if (stat(NIXOP_REGISTRY.data(), &buffer) == 0) {
-        storePackagesToStorage(packages, NIXOP_REGISTRY_TMP.data());
+        storeRepositoriesToStorage(packages, NIXOP_REGISTRY_TMP.data());
     }
     else {
-        storePackagesToStorage(packages, NIXOP_REGISTRY.data());
+        storeRepositoriesToStorage(packages, NIXOP_REGISTRY.data());
     }
 }
 
@@ -67,9 +67,9 @@ std::optional<std::string> SourceHandler::updateAllSources()
 
     std::multimap<std::string, NixPackagePrefix> packages;
 
-    std::string prefix = START_MARKER_URL;
+    std::string prefix = START_MARKER_URL.data();
     prefix += "&marker=";
-    std::string url = START_MARKER_URL;
+    std::string url = START_MARKER_URL.data();
     bool needToRequestMore = true;
 
     // Some Regex Wizardy
@@ -131,13 +131,14 @@ std::optional<std::string> SourceHandler::updateAllSources()
         }
     }
 
-    storePackages(packages);
+    storeRepositories(packages);
 
     return {};
 }
 
 std::future<std::optional<std::string>> SourceHandler::fetchAllSources()
 {
+    Cache::ensureCacheFolderExists();
     return std::async(std::launch::async, [&]() { return updateAllSources(); });
 }
 
@@ -153,7 +154,6 @@ SourceHandler::SourceHandler(std::shared_ptr<Config> &config)
     mObserverId = mConfig->registerObserver([&](const char *name, const char *value) {
         if (strcmp(name, "version") == 0)
             selectVersion(value);
-        std::cout << "Observer called with name=" << name << ", value=" << value << std::endl;
     });
 }
 
@@ -249,11 +249,27 @@ void SourceHandler::selectVersion(const std::string &version)
         nextVersion,
         hash,
         offset);
+
+    std::async(std::launch::async, [&]() { RepositoryCache(getSelection()).run(); });
 }
 
 NixSelection &SourceHandler::getSelection()
 {
-    auto s = mRepositories.find(mSelection.version);
-    mSelection.pkg = &s->second[mSelection.offset];
+    // Making sure that we store
+    mSelection.pkg = getRepositoryByOffset(mSelection.version, mSelection.offset);
     return mSelection;
+}
+
+bool SourceHandler::repositoryExists(const std::string &version)
+{
+    return mRepositories.find(version) != mRepositories.end();
+}
+
+NixPackagePrefix SourceHandler::getRepositoryByOffset(const std::string &version, unsigned long offset)
+{
+    if (!repositoryExists(version)) {
+        LOG_F(WARNING, "Selected version could not be determined, defaulting to \"zero\".");
+        return NixPackagePrefix::zero();
+    }
+    return mRepositories.find(version)->second[offset];
 }

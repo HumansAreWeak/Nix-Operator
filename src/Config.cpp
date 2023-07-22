@@ -8,12 +8,12 @@
 #include "Config.h"
 #include <filesystem>
 #include <iostream>
+#include <loguru.hpp>
 
 Config::Config()
     : mFStream(CONFIG_FILE.data(), std::ios::in | std::ios::out | std::ios::app)
 {
-    Cache::ensureCacheFolderExists();
-};
+}
 
 bool Config::getOptionWhereLineStartsWith(const std::string &startingWith, std::string &line)
 {
@@ -41,9 +41,7 @@ std::string Config::getString(const char *optionName, const char *def)
 
 void Config::writeToConfig(const char *optionName, const char *value)
 {
-    if (createFileIfNotExist(optionName, value))
-        return;
-
+    createFileIfNotExist();
     writeRawConfig(optionName, value);
     applyTempConfig();
     notifyAll(optionName, value);
@@ -102,12 +100,14 @@ std::ofstream Config::getTempConfigStream()
     return std::ofstream(CONFIG_TMP_FILE.data(), std::ios::ate);
 }
 
-bool Config::createFileIfNotExist(const char *optionName, const char *value)
+bool Config::createFileIfNotExist()
 {
+    Cache::ensureCacheFolderExists();
+
     // The file does not exist at this point
     if (!isStreamOpen()) {
-        mFStream << optionName << "=" << value;
-        notifyAll(optionName, value);
+        LOG_F(INFO, "It seems that the %s file does not exist. Creating...", CONFIG_FILE_NAME.data());
+        mFStream << "";
         return true;
     }
     return false;

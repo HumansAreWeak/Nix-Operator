@@ -42,6 +42,22 @@ struct NixPackagePrefix {
         ss << "NixPackagePrefix(version=" << version << ", hash=" << hash << ", last_modified=" << lastModified << ", size=" << size << ", id=" << id << ")";
         return ss.str();
     }
+
+    inline static NixPackagePrefix &zero()
+    {
+        static NixPackagePrefix pkg;
+        return pkg;
+    }
+
+private:
+    inline NixPackagePrefix()
+        : version("")
+        , hash("")
+        , lastModified(0)
+        , size(0)
+        , id(0)
+    {
+    }
 };
 
 #endif // NIX_OPERATOR_NIXPACKAGEPREFIX_H

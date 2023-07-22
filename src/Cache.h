@@ -11,9 +11,13 @@
 #include <string>
 
 class Cache {
+private:
+    static std::string getAbsFilepath(const std::string &filename);
+
 public:
     inline static constexpr const std::string_view NIXOP_CACHE_DIR = "/tmp/nixop/";
     static void ensureCacheFolderExists();
+    static bool fileExists(const std::string &filename);
 };
 
 #endif // NIX_OPERATOR_CACHE_H

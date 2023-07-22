@@ -19,12 +19,10 @@ add_executable(nix_operator
         src/SourceHandler.h
         src/network/CurlWrapper.cpp
         src/network/CurlWrapper.h
-        src/network/SourceFetch.cpp
-        src/network/SourceFetch.h
         src/network/Common.h
-        src/entities/NixPackagePrefix.h src/Config.cpp src/Config.h src/Cache.cpp src/Cache.h)
+        src/entities/NixPackagePrefix.h src/Config.cpp src/Config.h src/Cache.cpp src/Cache.h src/network/RepositoryCache.cpp src/network/RepositoryCache.h)
 
-target_link_libraries(nix_operator PUBLIC jsoncpp pugixml ${CURL_LIBRARIES})
+target_link_libraries(nix_operator PUBLIC jsoncpp loguru pugixml ${CURL_LIBRARIES})
 
 target_link_options(nix_operator PUBLIC -lncursesw)
 

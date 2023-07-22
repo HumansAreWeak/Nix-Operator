@@ -83,7 +83,7 @@ private:
      * @param value
      * @return If the file already existed or not
      */
-    bool createFileIfNotExist(const char *optionName, const char *value);
+    bool createFileIfNotExist();
 
     /**
      * Purely writes option with value to the config file, without any checking before hand

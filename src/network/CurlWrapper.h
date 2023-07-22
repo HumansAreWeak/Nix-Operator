@@ -64,6 +64,7 @@ public:
 
     CurlWrapper *setBearer(const char *token);
     CurlWrapper *url(const char *url);
+    CurlWrapper *url(const std::string &url);
     CurlWrapper *GET();
     CurlWrapper *request(const char *request);
     CurlWrapper *registerMulti(CURLM *curlm);
@@ -81,6 +82,11 @@ public:
     [[nodiscard]] const char *fetchResponse() const;
     bool successful() const;
     [[nodiscard]] const char *getResult() const;
+
+    /**
+     * @return true if the configuration is valid and exists (i.e. url has status 200)
+     */
+    bool exists();
 };
 
 #endif // NIX_OPERATOR_CURLWRAPPER_H

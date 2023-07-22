@@ -9,6 +9,7 @@
 #include "Config.h"
 #include <curl/curl.h>
 #include <iostream>
+#include <loguru.hpp>
 #include <ncurses.h>
 
 void Main::init()
@@ -25,13 +26,12 @@ void Main::run()
     }
 
     mHandler->mapRepositories();
+    mHandler->selectVersion(mConfig->getString("version", "23.05_latest"));
 
     // Initialize all the observers from the config values
     mConfig->notifyAll();
 
     NixSelection &sel = mHandler->getSelection();
-
-    std::cout << sel.pkg->toString() << std::endl;
 
     runSearchScreen();
 }

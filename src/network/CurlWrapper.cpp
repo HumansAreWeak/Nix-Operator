@@ -139,3 +139,15 @@ CurlWrapper *CurlWrapper::removeMulti(CURLM *curlm)
     curl_multi_remove_handle(curlm, mCurl);
     return this;
 }
+
+CurlWrapper *CurlWrapper::url(const std::string &url)
+{
+    return this->url(url.c_str());
+}
+
+bool CurlWrapper::exists()
+{
+    curl_easy_setopt(mCurl, CURLOPT_NOBODY, 1);
+    perform();
+    return successful();
+}
